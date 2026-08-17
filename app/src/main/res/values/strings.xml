@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">PhoneAssistant</string>
+    <string name="accessibility_service_name">PhoneAssist screen reader</string>
+    <string name="accessibility_service_description">Reads visible controls so PhoneAssist can guide you through one step at a time.</string>
+</resources>
