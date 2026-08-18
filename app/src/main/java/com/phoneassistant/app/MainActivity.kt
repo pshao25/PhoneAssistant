@@ -1,14 +1,18 @@
 package com.phoneassistant.app
 
 import android.accessibilityservice.AccessibilityService
+import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -71,6 +75,39 @@ private fun PhoneAssistHome(accessibilityEnabled: Boolean) {
     var guidanceStarted by remember { mutableStateOf(false) }
     var showGoalKeyboard by remember { mutableStateOf(false) }
     var target by remember { mutableStateOf("") }
+    var voiceInputMessage by remember { mutableStateOf<String?>(null) }
+    val speechIntent = remember {
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+            )
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Describe your goal")
+        }
+    }
+    val speechRecognitionAvailable = remember {
+        speechIntent.resolveActivity(context.packageManager) != null
+    }
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenGoal = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.trim()
+                .orEmpty()
+            if (spokenGoal.isNotEmpty()) {
+                target = spokenGoal
+                guidanceStarted = false
+                voiceInputMessage = null
+            } else {
+                voiceInputMessage = "No speech was recognized. Try again."
+            }
+        } else {
+            voiceInputMessage = null
+        }
+    }
 
     LaunchedEffect(showGoalKeyboard) {
         if (showGoalKeyboard) keyboardController?.hide()
@@ -139,6 +176,35 @@ private fun PhoneAssistHome(accessibilityEnabled: Boolean) {
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = {
+                    voiceInputMessage = null
+                    speechLauncher.launch(speechIntent)
+                },
+                enabled = accessibilityEnabled && speechRecognitionAvailable,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+            ) {
+                Text("Speak goal")
+            }
+            if (!speechRecognitionAvailable) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Voice input is not available on this device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            voiceInputMessage?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = {
@@ -163,7 +229,7 @@ private fun PhoneAssistHome(accessibilityEnabled: Boolean) {
             if (guidanceStarted) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "Guidance started. Open the screen where you want help.",
+                    text = "Guidance started. Return to the Home screen, then open the app where you want help.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
